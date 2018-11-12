@@ -44,4 +44,4 @@ def ela_substract(image_path, quality):
 
     scale = 255.0/max_diff
     diff = ImageEnhance.Brightness(diff).enhance(scale)
-    return im, diff
+    return np.array(diff)
