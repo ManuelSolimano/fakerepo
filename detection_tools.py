@@ -9,6 +9,8 @@ from PIL import Image, ImageChops, ImageEnhance, ImageFile
 import pywt
 import matplotlib.pyplot as plt
 from astropy.stats import median_absolute_deviation
+from skimage.filters import median
+import imageio
 
 def ela_substract(image_path, quality):
     """
@@ -86,3 +88,11 @@ def noise_detection_wavelet(img, wave, r, filename, dpi=80):
     plt.show()
 
     return sigmas
+
+
+def median_filter_residuals(image_path, **kwargs):
+    img = imageio.imread(image_path)
+    red, green, blue = img[:,:,0], img[:,:,1] ,img[:,:,2]
+    gray_median = median(green, **kwargs)
+    return np.abs(gray_median - green)
+
