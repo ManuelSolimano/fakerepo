@@ -91,8 +91,12 @@ def noise_detection_wavelet(img, wave, r, filename, dpi=80):
 
 
 def median_filter_residuals(image_path, **kwargs):
+    """Computes a local median on the input image and returns the difference.
+    Keyword arguments correspond to keyword arguments of skimage.filters.median.
+    """
+
     img = imageio.imread(image_path)
     red, green, blue = img[:,:,0], img[:,:,1] ,img[:,:,2]
-    gray_median = median(green, **kwargs)
-    return np.abs(gray_median - green)
+    gray_median = median(green, **kwargs).astype(np.int32)
+    return np.abs(gray_median - green.astype(np.int32))
 
