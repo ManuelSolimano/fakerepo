@@ -1,4 +1,5 @@
 *.zip
 *.pyc
-*.pdf
+lit/*.pdf
 *.xpi
+presentation/*.pdf
