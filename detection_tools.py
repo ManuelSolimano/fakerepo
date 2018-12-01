@@ -48,45 +48,47 @@ def ela_substract(image_path, quality):
     return np.array(diff)
 
 
-def noise_detection_wavelet(img, wave, r, filename, dpi=80):
+def noise_detection_wavelet(img, name, wave, r, dpi=80):
     # print("Image size:", img.shape)
     # Wavelet transform of image, and plot approximation and diagonal transform
     titles = ['Approximation', 'Diagonal detail']
     coeffs2 = pywt.dwt2(img, wave)  # bior1.3
     LL, (LH, HL, HH) = coeffs2
-    x, y = img.shape
+    x, y = HH.shape
     fig = plt.figure(figsize=(2 * y / dpi, x / dpi))
     for j, a in enumerate([LL, HH]):
         ax = fig.add_subplot(1, 2, j + 1)
         ax.imshow(a, interpolation="nearest", cmap='gray')
-        ax.set_title(titles[j] + " of " + filename, fontsize=10)
+        ax.set_title(titles[j] + " of " + name, fontsize=10)
         ax.set_xticks([])
         ax.set_yticks([])
     fig.tight_layout()
-    plt.savefig('wave_' + wave + '_HH_' + filename)
+    plt.savefig('wave_' + wave + '_HH_' + name)
     plt.show()
 
     rx, ry = int(x / r), int(y / r)
+    print(x, y, r, rx, ry, rx*r, ry*r, np.mod(x, r), np.mod(y, r))
     regions = []  # The image is segmented in regions of R x R squares
     sigmas = []  # Sigma is the noise level for each region
-    for i in range(rx):
+    for j in range(ry):
         region_list = []
         sigma_list = []
-        for j in range(ry):
-            region = np.asarray(img[rx + r * i:rx + r * (i + 1), ry + r * j:ry + r * (j + 1)])
-            region_list.append(region)
-
-            mad = median_absolute_deviation(region)
-            sigma = mad / 0.6745
-            sigma_list.append(sigma)
+        for i in range(rx):
+            region = np.asarray(HH[r*j:r*(j+1), r*i:r*(i+1)])
+            if region.shape[0] == r and region.shape[1] == r:
+                region_list.append(region)
+                mad = median_absolute_deviation(region)
+                sigma = mad / 0.6745
+                sigma_list.append(sigma)
+        if len(region_list) == 0:
+            continue
         regions.append(region_list)
         sigmas.append(sigma_list)
-    regions = np.asarray(regions)
     sigmas = np.asarray(sigmas)
 
     plt.imshow(sigmas)
     plt.tight_layout()
-    plt.savefig('sigma_' + wave + '_HH_' + filename)
+    plt.savefig('sigma_' + wave + '_HH_' + name)
     plt.show()
 
     return sigmas
