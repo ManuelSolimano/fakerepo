@@ -3,3 +3,5 @@
 lit/*.pdf
 *.xpi
 presentation/*.pdf
+columbia_dataset/
+*.dat

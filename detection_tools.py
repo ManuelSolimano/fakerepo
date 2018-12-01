@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 from astropy.stats import median_absolute_deviation
 from skimage.filters import median
 import imageio
+from numpy.lib.stride_tricks import as_strided
+
 
 def ela_substract(image_path, quality):
     """
@@ -99,4 +101,69 @@ def median_filter_residuals(image_path, **kwargs):
     red, green, blue = img[:,:,0], img[:,:,1] ,img[:,:,2]
     gray_median = median(green, **kwargs).astype(np.int32)
     return np.abs(gray_median - green.astype(np.int32))
+
+def _create_sss_matrix(block, window_size=9):
+    """ Creates the self-similarity pixel sampling matrix given a square block.
+    """
+    assert block.shape[0] == block.shape[1], "The input block needs to be a square array"
+    ell, _ = block.shape
+    n = (ell - window_size + 1) ** 2
+    m = window_size ** 2
+
+    # This was stolen from StackOverflow xd
+    #https://stackoverflow.com/questions/19414673/in-numpy-how-to-efficiently-
+    #list-all-fixed-size-submatrices
+    sub_shape = tuple([window_size, window_size])
+    view_shape = tuple(np.subtract(block.shape, sub_shape) + 1) + sub_shape
+    arr_view = as_strided(block, view_shape, block.strides * 2)
+    arr_view = arr_view.reshape(n, m).T
+    return arr_view
+
+def _covariance_matrix(X):
+    """ Computes covariance matrix as defined by Zhan et al. (2016).
+    """
+    _, n = X.shape
+    mean = np.average(X, axis=0)
+    return  np.dot((X - mean), (X - mean).T) / (n - 1.)
+
+def _get_minimum_eigenvalue(var_matrix):
+    """ Solve eigenvalue problem of given matrix and return minimum eigenvalue.
+    Assumes input matrix is hermitian.
+    """
+    eigenvalues = np.linalg.eigvalsh(var_matrix)
+    return eigenvalues[0]
+
+def _get_block_at_pos(gray_image, pos, size):
+    i, j = pos
+    top = i + size // 2 + 1
+    bottom = i - size // 2
+    left = j - size // 2
+    right = j + size // 2 + 1
+    return gray_image[bottom:top, left:right]
+
+def lme_transform(gray_image, block_size, window_size):
+    """ Perform PCA to get the local minimum eigenvalue at each pixel
+    using the method described by Zhan et al. (2016).
+    """
+    M, N = gray_image.shape
+    offset = (block_size  - 1) // 2   #block size has to be an odd integer
+    lme_array = np.zeros_like(gray_image).astype(np.float64)
+
+    # I couldn't think of a way to avoid traversing the whole image with for
+    # loops. This is likely to be the main bottleneck of the implementation.
+    for i in range(offset, M - offset):
+        for j in range(offset, N - offset):
+            block = _get_block_at_pos(gray_image, (i, j), block_size)
+            sss = _create_sss_matrix(block, window_size)
+            var = _covariance_matrix(sss)
+            lme_array[i][j] = _get_minimum_eigenvalue(var)
+
+
+    return lme_array
+
+
+
+if __name__ == "__main__":
+    img = imageio.imread('images/pinera.jpg')[:,:,1]
+    lme = lme_transform(img, 25, 15)
 
