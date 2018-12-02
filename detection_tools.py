@@ -57,8 +57,8 @@ def noise_detection_wavelet(img, name, wave, r, dpi=80):
     titles = ['Approximation', 'Diagonal detail']
     coeffs2 = pywt.dwt2(img, wave)  # bior1.3
     LL, (LH, HL, HH) = coeffs2
-    x, y = HH.shape
-    fig = plt.figure(figsize=(2 * y / dpi, x / dpi))
+    y, x = HH.shape
+    fig = plt.figure(figsize=(2 * x / dpi, y / dpi))
     for j, a in enumerate([LL, HH]):
         ax = fig.add_subplot(1, 2, j + 1)
         ax.imshow(a, interpolation="nearest", cmap='gray')
@@ -70,19 +70,19 @@ def noise_detection_wavelet(img, name, wave, r, dpi=80):
     plt.show()
 
     rx, ry = int(x / r), int(y / r)
-    print(x, y, r, rx, ry, rx*r, ry*r, np.mod(x, r), np.mod(y, r))
     regions = []  # The image is segmented in regions of R x R squares
     sigmas = []  # Sigma is the noise level for each region
     for j in range(ry):
         region_list = []
         sigma_list = []
         for i in range(rx):
-            region = np.asarray(HH[r*j:r*(j+1), r*i:r*(i+1)])
+            region = np.asarray(HH[r * j:r * (j + 1), r * i:r * (i + 1)])
             if region.shape[0] == r and region.shape[1] == r:
                 region_list.append(region)
                 mad = median_absolute_deviation(region)
                 sigma = mad / 0.6745
                 sigma_list.append(sigma)
+
         if len(region_list) == 0:
             continue
         regions.append(region_list)
