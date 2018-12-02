@@ -10,9 +10,12 @@ import pywt
 import matplotlib.pyplot as plt
 from astropy.stats import median_absolute_deviation
 from skimage.filters import median
+from skimage.transform import resize
 import imageio
 from numpy.lib.stride_tricks import as_strided
-
+from scipy.signal import savgol_filter
+from scipy.optimize import curve_fit
+from scipy.special import gamma
 
 def ela_substract(image_path, quality):
     """
@@ -104,6 +107,10 @@ def median_filter_residuals(image_path, **kwargs):
     gray_median = median(green, **kwargs).astype(np.int32)
     return np.abs(gray_median - green.astype(np.int32))
 
+# =============================================================================
+# LME noise level inconsistency method
+# =============================================================================
+
 def _create_sss_matrix(block, window_size=9):
     """ Creates the self-similarity pixel sampling matrix given a square block.
     """
@@ -163,9 +170,75 @@ def lme_transform(gray_image, block_size, window_size):
 
     return lme_array
 
+# =============================================================================
+# Blur type inconsistency detection (Bahrami et al. 2015)
+# =============================================================================
+
+def _partition_input(gray_image, d):
+    """ Divide input image in LxL blocks with d overlapping pixels.
+    Return: an array view of all blocks.
+    """
+    pass
+
+def _estimate_kernel(block):
+    """ Uses Maximum A Posteriori bayesian inference to estimate the blur
+    kernel of a given patch of image.
+    Return: kernel array
+    """
+    pass
+
+def _ggd(x, mu, sigma, beta):
+    return (beta / (2 * sigma + gamma(1./beta))) * \
+    np.exp(-(np.abs(x - mu)/sigma) ** beta)
+
+def _estimate_parameters(kernel, method='fit'):
+    """ Estimates dispersion (\sigma) and shape parameter (\beta) of the
+    gray value normalized histogram of the kernel. The model is a generalized
+    gaussian distribution.
+    Two methods can be used: 1. Curve fit using least squares, and 2. MLE
+    estimator formula from Wikipedia (article on GDD).
+    Return: Feature vector [sigma, beta].
+    """
+    # The kernel is assumed to be a grayscale 8bit integer array
+    bins = int(kernel.max())
+    kernel = kernel.astype(np.float) / np.sum(kernel)
+    hist, _ = np.histogram(kernel.ravel(), bins)
+    keep, _ = np.where(hist > 0)
+    hist = hist[keep]       # reject zero values
+    hist = hist / hist.sum() # normalize
+    x_axis = np.linspace(0., kernel.max(), hist.size)
+    filtered = savgol_filter(hist, 11, 1)   # remove noise
+    popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4., 5e-4, 1])
+    return popt[2:]
+
+def _classify_blur_type(feature_vector, w, threshold):
+    """ Given a feature vector computes feature parameter \nu_ij as
+    described in Bahrami et al. 2015 and then classifies as motion blur
+    or defocus blur.
+    Return: binary result (could be boolean)
+    """
+    pass
+
+def _smooth_block_analysis(blocks):
+    """ Classify each block as smooth or non-smooth and then analyze their
+    spatial distribution to further refine the blur type classification.
+    Return: binary image separating motion blur from defocus blur blocks.
+    """
+    pass
+
+def detect_blur_inconsistency(image):
+    pass
 
 
-if __name__ == "__main__":
-    img = imageio.imread('images/pinera.jpg')[:,:,1]
-    lme = lme_transform(img, 25, 15)
+
+
+#if __name__ == "__main__":
+#    img = imageio.imread('../clase02oct/cameraman.png')
+##    img = resize(img, (284, 378))
+#    lme = lme_transform(img, 17, 9)
+#    lme = np.abs(lme)
+#    exp = np.floor(-np.log10(lme.max()))
+#    lme *= 10 ** exp
+#    plt.imshow(lme)
+
 
