@@ -174,11 +174,15 @@ def lme_transform(gray_image, block_size, window_size):
 # Blur type inconsistency detection (Bahrami et al. 2015)
 # =============================================================================
 
-def _partition_input(gray_image, d):
+def _partition_input(gray_image, block_size, d):
     """ Divide input image in LxL blocks with d overlapping pixels.
     Return: an array view of all blocks.
     """
-    pass
+    M, N = gray_image.shape
+    offset = block_size - d
+    vshape = (M // offset, N // offset, block_size, block_size)
+    strides = tuple(np.array(gray_image.strides) * offset) + gray_image.strides
+    return as_strided(gray_image, vshape, strides)
 
 def _estimate_kernel(block):
     """ Uses Maximum A Posteriori bayesian inference to estimate the blur
@@ -208,7 +212,7 @@ def _estimate_parameters(kernel, method='fit'):
     hist = hist / hist.sum() # normalize
     x_axis = np.linspace(0., kernel.max(), hist.size)
     filtered = savgol_filter(hist, 11, 1)   # remove noise
-    popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4., 5e-4, 1])
+    popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4, 5e-4, 1])
     return popt[2:]
 
 def _classify_blur_type(feature_vector, w, threshold):
