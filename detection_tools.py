@@ -16,6 +16,7 @@ from numpy.lib.stride_tricks import as_strided
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
 from scipy.special import gamma
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 def ela_substract(image_path, quality):
     """
@@ -215,13 +216,25 @@ def _estimate_parameters(kernel, method='fit'):
     popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4, 5e-4, 1])
     return popt[2:]
 
-def _classify_blur_type(feature_vector, w, threshold):
-    """ Given a feature vector computes feature parameter \nu_ij as
-    described in Bahrami et al. 2015 and then classifies as motion blur
-    or defocus blur.
-    Return: binary result (could be boolean)
+def _train_classifier(data, labels, **kwargs):
+    """ Trains a Fisher Linear Discriminant model for classifying between
+    out of focus or motion blur.
+    input:
+        -data: A (N,2)-shaped array of feature vectors. E.g. the ith element
+        of this array must be [beta_i, sigma_i]
+        -labels: A N-long array of zeros or ones indicating the ground truth
+        class of each data element. So, labels[i] whether data[i] belongs to
+        the 0-class (motion blur) or the 1-class (defocus blur).
+        -kwargs(optional): Keyword arguments of LDA constructor. Please don't
+        mess with this.
+    Return:
+        -clf: A Sci-kit learn LinearDiscriminantAnalysis instance.
     """
-    pass
+    clf = LinearDiscriminantAnalysis(**kwargs)
+    clf.fit(data, labels)
+    return clf
+
+
 
 def _smooth_block_analysis(blocks):
     """ Classify each block as smooth or non-smooth and then analyze their
