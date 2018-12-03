@@ -216,12 +216,35 @@ def _estimate_parameters(kernel, method='fit'):
     popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4, 5e-4, 1])
     return popt[2:]
 
+def _generate_dataset():
+    scatter_plot = imageio.imread('rasterize_dataset.png')
+    red = scatter_plot[:,:,0]
+    blue = scatter_plot[:,:2]
+
+    mblur = np.where(red < 200)
+    mblur = np.array(mblur, dtype=np.float)
+    mblur[0] = -1.1696e-6 * mblur[0] + 5.906e-4 # convert vertical indices into
+    # the sigma coordinate
+    mblur[1] = 4e-3 * mblur[1] - 0.208 # convert horizontal indices into shape
+    # parameter (beta or gamma or whatever) coordinates
+
+    oblur = np.where(blue < 200)
+    mblur = np.array(mblur, dtype=np.float)
+    oblur[0] = -1.1696e-6 * oblur[0] + 5.906e-4
+    oblur[1] = 4e-3 * oblur[1] - 0.208
+
+    split = mblur.shape[1]
+    data = np.concatenate([mblur.T, oblur.T])
+    labels = np.zeros(data.shape[0], dtype=np.int)
+    labels[split:] = 1
+    return data, labels
+
 def _train_classifier(data, labels, **kwargs):
     """ Trains a Fisher Linear Discriminant model for classifying between
     out of focus or motion blur.
     input:
         -data: A (N,2)-shaped array of feature vectors. E.g. the ith element
-        of this array must be [beta_i, sigma_i]
+        of this array must be [sigma_i, beta_i]
         -labels: A N-long array of zeros or ones indicating the ground truth
         class of each data element. So, labels[i] whether data[i] belongs to
         the 0-class (motion blur) or the 1-class (defocus blur).
