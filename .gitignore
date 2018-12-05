@@ -9,3 +9,7 @@ BlindDeconvCode/
 *.mat
 *.jpeg
 *.csv
+utils.py
+*.png
+environment.yml
+spec-file2.txt

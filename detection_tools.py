@@ -15,8 +15,10 @@ import imageio
 from numpy.lib.stride_tricks import as_strided
 from scipy.signal import savgol_filter
 from scipy.optimize import curve_fit
-from scipy.special import gamma
+from scipy.special import gamma, digamma, polygamma
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from scipy.optimize import newton, minimize_scalar
+from scipy.stats import gennorm
 
 def ela_substract(image_path, quality):
     """
@@ -151,30 +153,6 @@ def _get_block_at_pos(gray_image, pos, size):
     right = j + size // 2 + 1
     return gray_image[bottom:top, left:right]
 
-def lme_transform(gray_image, block_size, window_size):
-    """ Perform PCA to get the local minimum eigenvalue at each pixel
-    using the method described by Zhan et al. (2016).
-    """
-    M, N = gray_image.shape
-    offset = (block_size  - 1) // 2   #block size has to be an odd integer
-    lme_array = np.zeros_like(gray_image).astype(np.float64)
-
-    # I couldn't think of a way to avoid traversing the whole image with for
-    # loops. This is likely to be the main bottleneck of the implementation.
-    for i in range(offset, M - offset):
-        for j in range(offset, N - offset):
-            block = _get_block_at_pos(gray_image, (i, j), block_size)
-            sss = _create_sss_matrix(block, window_size)
-            var = _covariance_matrix(sss)
-            lme_array[i][j] = _get_minimum_eigenvalue(var)
-
-
-    return lme_array
-
-# =============================================================================
-# Blur type inconsistency detection (Bahrami et al. 2015)
-# =============================================================================
-
 def _partition_input(gray_image, block_size, d):
     """ Divide input image in LxL blocks with d overlapping pixels.
     Return: an array view of all blocks.
@@ -185,6 +163,48 @@ def _partition_input(gray_image, block_size, d):
     strides = tuple(np.array(gray_image.strides) * offset) + gray_image.strides
     return as_strided(gray_image, vshape, strides)
 
+def lme_transform(gray_image, block_size, window_size):
+    """ Perform PCA to get the local minimum eigenvalue at each pixel
+    using the method described by Zhan et al. (2016).
+    """
+#    M, N = gray_image.shape
+#    offset = (block_size  - 1) // 2   #block size has to be an odd integer
+#    lme_array = np.zeros_like(gray_image).astype(np.float64)
+
+    # I couldn't think of a way to avoid traversing the whole image with for
+    # loops. This is likely to be the main bottleneck of the implementation.
+#    for i in range(offset, M - offset):
+#        for j in range(offset, N - offset):
+#            block = _get_block_at_pos(gray_image, (i, j), block_size)
+#            sss = _create_sss_matrix(block, window_size)
+#            var = _covariance_matrix(sss)
+#            lme_array[i][j] = _get_minimum_eigenvalue(var)
+
+    lme_array = np.zeros_like(gray_image).astype(np.float64)
+    M, N = gray_image.shape
+    vshape= (M, N, block_size, block_size)
+    strides = gray_image.strides * 2
+    view = as_strided(gray_image, vshape, strides)
+    for i in range(M):
+        for j in range(N):
+            sss = _create_sss_matrix(view[i,j], window_size)
+            var = _covariance_matrix(sss)
+            lme_array[i,j] = _get_minimum_eigenvalue(var)
+#    view = _partition_input(gray_image, block_size, 1)
+#    for i in range(view.shape[0]):
+#        for j in range(view.shape[1]):
+#            sss = _create_sss_matrix(view[i,j], window_size)
+#            var = _covariance_matrix(sss)
+#            view[i,j][:,:]= _get_minimum_eigenvalue(var)
+#    return gray_image
+    return lme_array
+
+# =============================================================================
+# Blur type inconsistency detection (Bahrami et al. 2015)
+# =============================================================================
+
+
+
 def _estimate_kernel(block):
     """ Uses Maximum A Posteriori bayesian inference to estimate the blur
     kernel of a given patch of image.
@@ -192,11 +212,32 @@ def _estimate_kernel(block):
     """
     pass
 
-def _ggd(x, mu, sigma, beta):
-    return (beta / (2 * sigma + gamma(1./beta))) * \
+def _ggd(x, amp, mu, sigma, beta):
+    return amp * (beta / (2 * sigma + gamma(1./beta))) * \
     np.exp(-(np.abs(x - mu)/sigma) ** beta)
 
-def _estimate_parameters(kernel, method='fit'):
+def _func(beta, hist):
+    mu = hist.mean()
+    diff = np.abs(hist - mu)
+    g = 1 + digamma(1/beta) / beta \
+    - np.sum(np.log(diff) * diff ** beta) / np.sum(diff ** beta) \
+    + np.log((beta / hist.size) * np.sum(diff ** beta)) / beta
+    return g
+
+def _func_prime(beta, hist):
+    mu = hist.mean()
+    diff = np.abs(hist - mu)
+    g_prime = - digamma(1 / beta) / beta \
+    - polygamma(3, 1 / beta) / (beta ** 2) \
+    - polygamma(3, 1 / beta) / (beta ** 3) \
+    + 1 / (beta ** 2) \
+    - np.sum((np.log(diff) ** 2) * diff ** beta) / np.sum(diff ** beta) \
+    + (np.sum(np.log(diff) * diff ** beta) / np.sum(diff ** beta)) ** 2 \
+    + np.sum(np.log(diff) * diff ** beta) / (beta * np.sum(diff ** beta)) \
+    - np.log((beta / hist.size) * np.sum(diff ** beta)) / (beta ** 2)
+    return g_prime
+
+def _estimate_parameters(kernel, method='fit2'):
     """ Estimates dispersion (\sigma) and shape parameter (\beta) of the
     gray value normalized histogram of the kernel. The model is a generalized
     gaussian distribution.
@@ -204,17 +245,33 @@ def _estimate_parameters(kernel, method='fit'):
     estimator formula from Wikipedia (article on GDD).
     Return: Feature vector [sigma, beta].
     """
-    # The kernel is assumed to be a grayscale 8bit integer array
-    bins = int(kernel.max())
+    bins = 256 #int(kernel.max())
     kernel = kernel.astype(np.float) / np.sum(kernel)
     hist, _ = np.histogram(kernel.ravel(), bins)
-    keep, _ = np.where(hist > 0)
+    keep = np.where(hist > 0)[0]
     hist = hist[keep]       # reject zero values
     hist = hist / hist.sum() # normalize
     x_axis = np.linspace(0., kernel.max(), hist.size)
-    filtered = savgol_filter(hist, 11, 1)   # remove noise
-    popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4, 5e-4, 1])
-    return popt[2:]
+
+    if method == 'fit':
+        filtered = savgol_filter(hist, 11, 1)   # remove noise
+        popt, pcov = curve_fit(_ggd, x_axis, filtered, p0=[1, 5e-4, 5e-4, 1])
+        return popt[2:], hist, filtered, x_axis
+
+    elif method == 'fit2':
+        beta, loc, sigma = gennorm.fit(hist)
+        return np.array([sigma, beta])
+
+    elif method == 'mle':
+        m1 = np.average(np.abs(hist)) # compute first moment
+        m2 = np.average(np.abs(hist) ** 2) # compute second moment
+        beta0 = m1/np.sqrt(m2)
+        beta = newton(_func, x0=beta0, args=(hist,), fprime=_func_prime,
+                      maxiter=9999)
+        stat = lambda mu: np.sum(np.abs(hist - mu) ** beta)
+        mean = minimize_scalar(stat).x
+        sigma = ((beta / hist.size) * np.sum(np.abs(hist - mean) ** beta)) ** (1/beta)
+        return np.array([sigma, beta])
 
 def _generate_dataset():
     scatter_plot = imageio.imread('rasterize_dataset.png')
@@ -290,11 +347,10 @@ def detect_blur_inconsistency(image):
 
 #if __name__ == "__main__":
 #    img = imageio.imread('../clase02oct/cameraman.png')
-##    img = resize(img, (284, 378))
-#    lme = lme_transform(img, 17, 9)
-#    lme = np.abs(lme)
-#    exp = np.floor(-np.log10(lme.max()))
-#    lme *= 10 ** exp
+#    lme = lme_transform(img, 5, 3)
+###    lme = np.abs(lme)
+###    exp = np.floor(-np.log10(lme.max()))
+###    lme *= 10 ** exp
 #    plt.imshow(lme)
 
 
