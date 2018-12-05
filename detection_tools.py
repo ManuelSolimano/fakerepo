@@ -339,8 +339,23 @@ def _smooth_block_analysis(blocks):
     """
     pass
 
-def detect_blur_inconsistency(image):
-    pass
+def detect_blur_inconsistency(image, block_size, d, clf):
+    """ Blur type splicing detection algorithm by Bahrami et al. (with a few mods)
+    DO NOT TEST YET, as the _estimate_kernel function is not ready.
+    Also the clf classifier is not hardcoded yet.
+    """
+    partition = _partition_input(image, block_size, d) # This function does
+    # not allocate a new array, is a mapping on the original.
+    M, N, _ = partition.shape
+    for i in range(M):
+        for j in range(N):
+            kernel = _estimate_kernel(partition[i,j])
+            feature_vector = _estimate_parameters(kernel)
+            blur_type = clf.predict([feature_vector]) #Use pre-trained LDA to
+            # decide to which blur type class the block belong to
+            partition[i,j][:,:] = blur_type # Make the segmentation on the o
+            # original array.
+    return image
 
 
 
