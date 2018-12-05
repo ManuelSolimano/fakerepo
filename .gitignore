@@ -5,3 +5,5 @@ lit/*.pdf
 presentation/*.pdf
 columbia_dataset/
 *.dat
+BlindDeconvCode/
+*.mat
