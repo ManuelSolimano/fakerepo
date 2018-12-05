@@ -257,6 +257,22 @@ def _train_classifier(data, labels, **kwargs):
     clf.fit(data, labels)
     return clf
 
+def _smooth_or_not(block, threshold=100):
+    """ Decides wether a block is smooth or not based on its power spectrum
+    frequency distribution. The threshold may not be well calibrated for every
+    image.
+    """
+    # Compute power spectrum
+    fft = np.fft.fftshift(np.fft.fft2(block))
+    ps = np.abs(fft) ** 2
+
+    # Compute smoothness metric
+    metric = ps.max() / (ps.sum() - ps.max())
+    if metric > threshold:
+        return 0    # The block is smooth
+    elif metric < threshold:
+        return 1    # The block is non-smooth
+
 
 
 def _smooth_block_analysis(blocks):

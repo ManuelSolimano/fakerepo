@@ -7,3 +7,5 @@ columbia_dataset/
 *.dat
 BlindDeconvCode/
 *.mat
+*.jpeg
+*.csv
