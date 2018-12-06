@@ -19,6 +19,8 @@ from scipy.special import gamma, digamma, polygamma
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from scipy.optimize import newton, minimize_scalar
 from scipy.stats import gennorm
+import matlab.engine
+eng = matlab.engine.start_matlab()
 
 def ela_substract(image_path, quality):
     """
@@ -210,7 +212,16 @@ def _estimate_kernel(block):
     kernel of a given patch of image.
     Return: kernel array
     """
-    pass
+    ks1, ks2 = int(block.shape[0] / 3), int(block.shape[1] / 3)
+
+    mat_block = matlab.double(block.tolist())
+
+    deconv = eng.deconv_diagfe_filt_sps(mat_block, float(ks1), float(ks2))
+
+    np_deconv = np.array(deconv._data.tolist())
+    np_deconv = np_deconv.reshape(deconv.size).transpose()
+
+    return np_deconv
 
 def _ggd(x, amp, mu, sigma, beta):
     return amp * (beta / (2 * sigma + gamma(1./beta))) * \
