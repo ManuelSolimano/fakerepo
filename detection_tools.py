@@ -62,17 +62,17 @@ def noise_detection_wavelet(img, name, wave, r, dpi=80):
     titles = ['Approximation', 'Diagonal detail']
     coeffs2 = pywt.dwt2(img, wave)  # bior1.3
     LL, (LH, HL, HH) = coeffs2
-    y, x = HH.shape
-    fig = plt.figure(figsize=(2 * x / dpi, y / dpi))
-    for j, a in enumerate([LL, HH]):
-        ax = fig.add_subplot(1, 2, j + 1)
-        ax.imshow(a, interpolation="nearest", cmap='gray')
-        ax.set_title(titles[j] + " of " + name, fontsize=10)
-        ax.set_xticks([])
-        ax.set_yticks([])
-    fig.tight_layout()
-    plt.savefig('wave_' + wave + '_HH_' + name)
-    plt.show()
+#    y, x = HH.shape
+#    fig = plt.figure(figsize=(2 * x / dpi, y / dpi))
+#    for j, a in enumerate([LL, HH]):
+#        ax = fig.add_subplot(1, 2, j + 1)
+#        ax.imshow(a, interpolation="nearest", cmap='gray')
+#        ax.set_title(titles[j] + " of " + name, fontsize=10)
+#        ax.set_xticks([])
+#        ax.set_yticks([])
+#    fig.tight_layout()
+#    plt.savefig('wave_' + wave + '_HH_' + name)
+#    plt.show()
 
     rx, ry = int(x / r), int(y / r)
     regions = []  # The image is segmented in regions of R x R squares
@@ -94,10 +94,10 @@ def noise_detection_wavelet(img, name, wave, r, dpi=80):
         sigmas.append(sigma_list)
     sigmas = np.asarray(sigmas)
 
-    plt.imshow(sigmas)
-    plt.tight_layout()
-    plt.savefig('sigma_' + wave + '_HH_' + name)
-    plt.show()
+#    plt.imshow(sigmas)
+#    plt.tight_layout()
+#    plt.savefig('sigma_' + wave + '_HH_' + name)
+#    plt.show()
 
     return sigmas
 
