@@ -17,9 +17,23 @@ def prompt():
     4) PCA noise analysis
     5) Blur Type Inconsistency.
     Ingrese el número:  """
-        method_name = input(m_prompt)
+        method_number = int(input(m_prompt))
         image_name = input('Ingrese el nombre de la imagen: ')
 
+        if method_number == 1:
+            pass
+
+        elif method_number == 2:
+            pass
+
+        elif method_number == 3:
+            pass
+
+        elif method_number == 4:
+            pass
+
+        elif method_number == 5:
+            pass
 
 
 
